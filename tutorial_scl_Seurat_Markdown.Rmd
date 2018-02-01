@@ -14,12 +14,6 @@ suppressPackageStartupMessages(library(scater))
 suppressPackageStartupMessages(library(Seurat))
 ```
 
-```{r}
-data_path = "D:/Dropbox/매뉴얼/SC_tutorial"
-figure_path = "D:/Dropbox/매뉴얼/SC_tutorial"
-setwd(data_path)
-```
-
 
 ## Load scesetFiltered, hvg 
 ```{r}
@@ -49,7 +43,7 @@ qplot(x = seq(1:PCA),y = seuset@dr$pca@sdev,
 ```
 
 ## PC25까지 사용하여 TSNE 및 Clustering
-```{r eval=FALSE}
+```{r}
 PCA_use = 25
 seuset <- RunTSNE(seuset, dims.use = 1:PCA_use, do.fast = T, seed.use = 123456, perplexity=100)
 seuset <- FindClusters(seuset, reduction.type="pca", dims.use = 1:PCA_use, save.SNN = TRUE, force.recalc = TRUE)
@@ -57,11 +51,11 @@ seuset <- FindClusters(seuset, reduction.type="pca", dims.use = 1:PCA_use, save.
 
 ```{r}
 # save(seuset, file= "seuset.RData")
-load("seuset.RData")
+# load("seuset.RData")
 
-clusters_seurat = seuset@ident
+# clusters_seurat = seuset@ident
 # save(clusters_seurat, file= "clusters_seurat.RData")
-load("clusters_seurat.RData")
+# load("clusters_seurat.RData")
 
 ```
 

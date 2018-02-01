@@ -56,10 +56,9 @@ suppressPackageStartupMessages(library(scater))
 
 ## path 설정 
 
-```{r}
-data_path = "D:/Dropbox/매뉴얼/SC_tutorial"
-figure_path = "D:/Dropbox/매뉴얼/SC_tutorial"
-setwd(data_path)
+```{r eval=FALSE}
+getwd()
+# setwd()
 ```
 
 
@@ -67,9 +66,9 @@ setwd(data_path)
 ```{r}
 # Hochgerner, H., et al. (2018). "Conserved properties of dentate gyrus neurogenesis across 
 # postnatal development revealed by single-cell RNA sequencing." Nat Neurosci.
-countData = read.table("Hochgerner/GSE95315_10X_expression_data.tab/10X_expression_data.tab", sep = "\t", header = T, row.names = 1,  check.names=FALSE)
+countData = read.table("Hochgerner/GSE95315_10X_expression_data.tab.gz", sep = "\t", header = T, row.names = 1,  check.names=FALSE)
 countData = countData[rowSums(countData) > 0, ]
-anno_10x <- read.table("Hochgerner/GSE95315_10X_expression_data.tab/annotation10x.txt", sep = "\t",row.names = 1, header = TRUE)
+anno_10x <- read.table("Hochgerner/annotation10x.txt", sep = "\t",row.names = 1, header = TRUE)
 
 cellInfo = data.frame( cell = colnames(countData), 
                        batch = sapply(colnames(countData), function(x) substr(x, 4, 7))
@@ -165,9 +164,9 @@ dg_sce$use <- (
     # sufficient features (genes)
     filter_by_expr_features &
     # sufficient molecules counted
-    filter_by_total_counts &
+    # filter_by_total_counts &
     # sufficient endogenous RNA
-    filter_by_ERCC &
+    # filter_by_ERCC &
     # remove cells with unusual number of reads in MT genes
     filter_by_MT
 )
@@ -253,8 +252,6 @@ points(y = var.out$total[var.out$FDR <= 0.05 & var.out$bio > .1],
        x = var.out$mean[var.out$FDR <= 0.05 & var.out$bio > .1],
        pch=16, cex=0.3, col="red")
 
-
-setwd(data_path)
 save(hvg, file="hvg.RData")
 
 #hvg 298 genes
