@@ -1,0 +1,75 @@
+---
+title: "tutorial_scl - destiny_Markdown"
+author: "Eunmin Lee"
+date: "2018년 1월 26일"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+suppressPackageStartupMessages(library(scater))
+suppressPackageStartupMessages(library(destiny))
+suppressPackageStartupMessages(library(M3Drop))
+```
+
+```{r}
+data_path = "D:/Dropbox/매뉴얼/SC_tutorial"
+figure_path = "D:/Dropbox/매뉴얼/SC_tutorial"
+setwd(data_path)
+```
+
+Seurat에서 계산한 15개의 clusters 중 다음과 같은 clusters 선택 후  
+
+Destity 사용하여 Trajectory 분석
+
+0,1 - Granule
+
+2,4 - Neuroblast2
+
+3,5 - Neuroblast1
+
+10  - nlPC 
+
+8   - Radial glia-like
+
+```{r}
+scesetFiltered = readRDS( file= "scsetFiltered_norm.rds")
+load(file = "clusters_seurat.RData")
+load(file = "markers.RData")
+
+
+# 0,1,2,3,4,5,8,10 clusters만 사용 
+scesetFiltered = scesetFiltered[,clusters_seurat %in% c(0,1,2,3,4,5,8,10)]
+newclusters = factor(clusters_seurat[clusters_seurat %in%  c(0,1,2,3,4,5,8,10)])
+
+# m3dgenes method
+m3dGenes <- as.character(
+  M3DropDifferentialExpression(exprs(scesetFiltered)[rowSums(exprs(scesetFiltered)) > 0,])$Gene
+)
+
+exprs.DE = exprs(scesetFiltered)[m3dGenes,]
+
+
+dm = DiffusionMap(t(exprs.DE))
+dpt = DPT(dm)
+plot(dpt, pch = 20)
+plot(dpt, col_by = "branch")
+
+plot(dpt, root = 2, paths_to = 3, pch = 20, col_path = "blue", col = newclusters, cex=1.5 )
+```
+
+
+0,1 - Granule
+
+2,4 - Neuroblast2
+
+3,5 - Neuroblast1
+
+10  - nlPC 
+
+8   - Radial glia-like
+

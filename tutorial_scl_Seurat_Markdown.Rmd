@@ -1,0 +1,143 @@
+---
+title: "tutorial_scl - Seurat_Markdown"
+author: "Eunmin Lee"
+date: "2018년 1월 26일"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+suppressPackageStartupMessages(library(scater))
+suppressPackageStartupMessages(library(Seurat))
+```
+
+```{r}
+data_path = "D:/Dropbox/매뉴얼/SC_tutorial"
+figure_path = "D:/Dropbox/매뉴얼/SC_tutorial"
+setwd(data_path)
+```
+
+
+## Load scesetFiltered, hvg 
+```{r}
+scesetFiltered = readRDS( file= "scsetFiltered_norm.rds")
+load(file="hvg.RData")
+```
+
+## Create seurat object
+```{r}
+seuset <- CreateSeuratObject(
+  raw.data = counts(scesetFiltered)
+)
+seuset@data = exprs(scesetFiltered)
+seuset@scale.data = exprs(scesetFiltered)
+seuset@var.genes = rownames(hvg)
+
+
+```
+
+
+## PCA 
+```{r}
+PCA = 50
+seuset <- RunPCA(seuset, pcs.compute = PCA, weight.by.var = FALSE, do.print = TRUE)
+qplot(x = seq(1:PCA),y = seuset@dr$pca@sdev,
+      xlab = "PC", ylab = "Eigenvalue")
+```
+
+## PC25까지 사용하여 TSNE 및 Clustering
+```{r eval=FALSE}
+PCA_use = 25
+seuset <- RunTSNE(seuset, dims.use = 1:PCA_use, do.fast = T, seed.use = 123456, perplexity=100)
+seuset <- FindClusters(seuset, reduction.type="pca", dims.use = 1:PCA_use, save.SNN = TRUE, force.recalc = TRUE)
+```
+
+```{r}
+# save(seuset, file= "seuset.RData")
+load("seuset.RData")
+
+clusters_seurat = seuset@ident
+# save(clusters_seurat, file= "clusters_seurat.RData")
+load("clusters_seurat.RData")
+
+```
+
+## Seurat 패키지 function으로 plot하기
+```{r}
+PCAPlot(seuset)
+TSNEPlot(seuset, do.label = TRUE)
+
+```
+
+
+## ggplot2 사용하여 plot하기
+```{r}
+
+# publication celltype labels
+qplot(x=seuset@dr$tsne@cell.embeddings[, "tSNE_1"],
+      y=seuset@dr$tsne@cell.embeddings[, "tSNE_2"],
+      xlab ="component1", ylab = "component2",
+      colour = scesetFiltered$celltype)
+
+
+```
+
+
+# 각 cluster별 Markers 찾기 
+```{r}
+# markers <- FindAllMarkers(
+#   object = seuset, 
+#   test.use = "wilcox", 
+#   only.pos = TRUE, 
+#   min.pct = 0.25, 
+#   logfc.threshold = 0.25
+# )
+
+# save(markers, file="markers.RData")
+load("markers.RData")
+```
+
+## 상위 5 markers heatmap 그리기
+```{r}
+suppressPackageStartupMessages(library(dplyr))
+top5 <- subset(markers, cluster %in% c(0,1,2,3,4,5,8,10)) %>% group_by(cluster) %>% do(head(.,5))
+
+DoHeatmap(
+  object = seuset,
+  cells.use = names(seuset@ident)[seuset@ident %in% c(0,1,2,3,4,5,8,10)],
+  genes.use = top5$gene, 
+  slim.col.label = TRUE, 
+  remove.key = TRUE
+)
+```
+
+## Seurat 기능 
+```{r}
+RidgePlot(seuset, features.plot = c("Calb1"))
+```
+
+```{r}
+features.plot = c("Cdk1", "Ascl1", "Tfap2c", "Eomes",
+                  "Igfbpl1","Calb2","Plk5",
+                  "Gfap","Hes5", "Sox2", "Emx2",
+                  "Foxg1", "Egfr", "Prom1",
+                  "Lpar1","Nes", "Neurog2","Top2a",
+                  "Mcm2", "Dcx", "Neurod1", "Calb1"
+                  )
+DotPlot(object = seuset, genes.plot = features.plot, plot.legend = TRUE, x.lab.rot =T)
+DotPlot(object = seuset, genes.plot = unique(top5$gene), plot.legend = TRUE, x.lab.rot =T)
+```
+
+
+
+
+```{r}
+FeaturePlot(object = seuset, features.plot = "Igfbpl1", no.legend = FALSE,
+            do.hover = TRUE, data.hover = c("ident", "PC1", "nGene")
+            , dark.theme = TRUE)
+
+```
+

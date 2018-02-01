@@ -1,0 +1,287 @@
+---
+title: "tutorial_scl - Hochgerner"
+author: "Eunmin Lee"
+date: "2018년 1월 26일"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R 설치하기
+
+접속하여 사용자의 OS 해당되는 파일을 다운로드 및 설치
+
+R : https://cloud.r-porject.org 
+
+R studio : https://www.rstudio.com/products/rstudio/download 
+
+
+## Bioconductor 소개
+
+Bioconductor : bioinformatics 위한 packages 제공
+
+R 버전의 따라 설치되는 Bioconductor 버전이 다릅니다. 
+
+R 3.2.x  : Bioconductor 3.2
+
+R 3.3.x  : Bioconductor 3.4
+
+R 3.4.3  : Bioconductor 3.6 *
+
+
+*오늘 사용할 버전은  R 3.4.3과 Bioconductor 3.6 입니다.
+
+R studio에서 R버전 바꾸는 방법 Tools -> Global Option -> General -> R version (윈도우 기준)
+linux - libcurl4-openssl-dev, libxml2-dev, libssl-dev 설치가 필요할 수 있습니다.
+## Bioconductor 이용하여 패키지 설치
+
+```{r eval=FALSE}
+source("https://bioconductor.org/biocLite.R")
+biocLite("scater")
+biocLite("scran")
+biocLite("destiny")
+biocLite("M3Drop")
+
+install.packages("Seurat")
+```
+
+
+## 패키지 로딩 
+```{r}
+suppressPackageStartupMessages(library(scran))
+suppressPackageStartupMessages(library(scater))
+```
+
+## path 설정 
+
+```{r}
+data_path = "D:/Dropbox/매뉴얼/SC_tutorial"
+figure_path = "D:/Dropbox/매뉴얼/SC_tutorial"
+setwd(data_path)
+```
+
+
+## Load Data 
+```{r}
+# Hochgerner, H., et al. (2018). "Conserved properties of dentate gyrus neurogenesis across 
+# postnatal development revealed by single-cell RNA sequencing." Nat Neurosci.
+countData = read.table("Hochgerner/GSE95315_10X_expression_data.tab/10X_expression_data.tab", sep = "\t", header = T, row.names = 1,  check.names=FALSE)
+countData = countData[rowSums(countData) > 0, ]
+anno_10x <- read.table("Hochgerner/GSE95315_10X_expression_data.tab/annotation10x.txt", sep = "\t",row.names = 1, header = TRUE)
+
+cellInfo = data.frame( cell = colnames(countData), 
+                       batch = sapply(colnames(countData), function(x) substr(x, 4, 7))
+                       ,celltype = anno_10x[colnames(countData),"celltype"] )
+cd = as.matrix(countData)
+logcd = log2(cd + 1)
+```
+
+
+
+## Create SCSET
+```{r}
+dg_sce <- SingleCellExperiment(assays=list(counts=cd, logcounts=logcd), colData = cellInfo)
+```
+
+
+## 사용하지 않는 변수 제거
+
+```{r}
+rm(countData)
+rm(cd)
+rm(logcd)
+```
+
+
+
+## QC 
+
+mitochondrial(mt) genes 설정 후 calculateQCMetrics 계산하기
+
+```{r}
+is.mito = grepl("^mt-",rownames(dg_sce))
+length(is.mito[is.mito == TRUE])
+dg_sce = calculateQCMetrics(dg_sce,  feature_controls=list(Mt=is.mito))
+
+
+plotPCA(
+  dg_sce,
+  size_by = "total_features",
+  # colour_by = "use",
+  pca_data_input = "pdata"
+)
+
+```
+
+### total counts histogram
+```{r}
+
+hist(
+  dg_sce$total_counts,
+  breaks = 100
+)
+
+```
+
+### total features histogram
+```{r}
+hist(
+  dg_sce$total_features,
+  breaks = 100
+)
+abline(v = 700, col = "red")
+```
+
+
+발현된 gene 개수가 700미만 cell filter
+```{r}
+filter_by_expr_features =  dg_sce$total_features > 700
+```
+
+### MT gene proportion 
+```{r}
+plotPhenoData(
+  dg_sce,
+  aes_string(
+    x = "total_features",
+    y = "pct_counts_Mt",
+    colour = "batch"
+  )
+)
+```
+
+pct_counts_Mt 값이 10% 미만인 cell만 사용
+
+```{r}
+filter_by_MT = dg_sce$pct_counts_Mt < 10
+```
+
+
+dg_sce에 use column를 생성하여 사용할 cell 리스트 추가하기
+```{r}
+dg_sce$use <- (
+    # sufficient features (genes)
+    filter_by_expr_features &
+    # sufficient molecules counted
+    filter_by_total_counts &
+    # sufficient endogenous RNA
+    filter_by_ERCC &
+    # remove cells with unusual number of reads in MT genes
+    filter_by_MT
+)
+
+```
+
+
+gene 중에 2 이상 발현된 cell이 2개 이상인 gene만 사용 
+
+```{r}
+filter_genes <- apply(
+  counts(dg_sce[ , colData(dg_sce)$use]), 
+  1, 
+  function(x) length(x[x > 1]) >= 2
+)
+rowData(dg_sce)$use <- filter_genes
+
+```
+
+
+## After QC
+```{r}
+
+scesetFiltered = dg_sce[rowData(dg_sce)$use, colData(dg_sce)$use]
+rm(dg_sce)
+
+is.mito = grepl("^mt-",rownames(scesetFiltered))
+scesetFiltered = calculateQCMetrics(scesetFiltered,  feature_controls=list(Mt=is.mito))
+endog_genes = !rowData(scesetFiltered)$is_feature_control # feature control (mt genes)
+
+plotPCA(
+  scesetFiltered[endog_genes, ],
+  exprs_values = "logcounts",
+  colour_by = "celltype",
+  size_by = "total_features",
+  shape_by = "batch"
+)
+
+
+plotTSNE(
+  scesetFiltered[endog_genes, ],
+  exprs_values = "logcounts",
+  perplexity = 50,
+  colour_by = "celltype",
+  size_by = "total_features",
+  shape_by = "batch",
+  rand_seed = 123456
+)
+```
+
+
+
+## Normalization with scran
+```{r}
+# clusters <- quickCluster(scesetFiltered)
+# save(clusters, file= "clusters.RData") # ~ 30 mins 
+load("clusters.RData")
+scesetFiltered <- computeSumFactors(scesetFiltered, cluster=clusters)
+
+plot(sizeFactors(scesetFiltered), scesetFiltered$total_counts/1e3, log= "xy",
+     ylab="Library size (kilos)", xlab="Size factor")
+
+
+scesetFiltered <- normalize(scesetFiltered)
+
+
+saveRDS(scesetFiltered, "scsetFiltered_norm.rds")
+```
+
+## Detecting highly variable genes
+```{r}
+
+var.fit <- trendVar(scesetFiltered, method="spline", parametric=TRUE, 
+                    use.spikes=FALSE, span=0.2)
+var.out <- decomposeVar(scesetFiltered, var.fit)
+hvg <- var.out[which(var.out$FDR <= 0.05 & var.out$bio > .1),]
+
+plot(y = var.out$total, x = var.out$mean, pch=16, cex=0.3, 
+     ylab="Variance of log-expression", xlab="Mean log-expression")
+o <- order(var.out$mean)
+lines(y = var.out$tech[o], x = var.out$mean[o], col="dodgerblue", lwd=2)
+points(y = var.out$total[var.out$FDR <= 0.05 & var.out$bio > .1],
+       x = var.out$mean[var.out$FDR <= 0.05 & var.out$bio > .1],
+       pch=16, cex=0.3, col="red")
+
+
+setwd(data_path)
+save(hvg, file="hvg.RData")
+
+#hvg 298 genes
+
+
+plotPCA(
+  scesetFiltered[rownames(hvg), ],
+  exprs_values = "logcounts",
+  colour_by = "celltype",
+  size_by = "total_features",
+  shape_by = "batch"
+)
+
+
+plotTSNE(
+  scesetFiltered[rownames(hvg), ],
+  exprs_values = "logcounts",
+  perplexity = 50,
+  colour_by = "celltype",
+  size_by = "total_features",
+  shape_by = "batch",
+  rand_seed = 123456
+)
+
+  
+```
+
+
+
+
