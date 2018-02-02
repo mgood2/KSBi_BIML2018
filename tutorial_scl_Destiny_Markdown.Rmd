@@ -68,4 +68,40 @@ plot(dpt, root = 1, paths_to = 2, pch = 20, col_path = "blue", col = newclusters
 10  - nlPC 
 
 8   - Radial glia-like
+```{r}
+features.plot = c("Eomes","Gfap","Hes5", "Calb1"
+)
+
+x = dpt$DPT122
+X = seq(0.0, max(x), 0.01)
+TSmat = matrix(data=NA, nrow=length(features.plot), 
+               ncol=length(X), dimnames = list(features.plot, X))
+for(i in features.plot){
+  y = exprs(scesetFiltered)[i,]
+  ls = loess(y ~ x, span = 0.02)
+  Y_hat = predict(ls, X)
+  TSmat[i,] = Y_hat
+}
+library(reshape2)
+df.TSmat = data.frame(t(TSmat), x = X)
+df.TSmat.long <- melt(df.TSmat, id=c("x"))
+
+ggplot(data = df.TSmat.long, aes(x=x, y=value, color=variable)) +
+  geom_line() +
+  ylab("exprs") +
+  xlab("PseudoTime") +
+  theme_bw() +
+  theme(text = element_text(size=20),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(), 
+        axis.line=element_line(size=1),
+        axis.ticks=element_line(size=1),
+        legend.position = "right",
+        legend.text=element_text(size=10), 
+        legend.title=element_blank(),
+        legend.key=element_blank(),
+        axis.text.x = element_text(size=20)
+  ) + scale_color_manual(values=rainbow(length(features.plot)))
+
+```
 
