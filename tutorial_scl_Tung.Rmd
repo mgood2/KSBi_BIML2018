@@ -1,0 +1,312 @@
+---
+title: "sctutorial - Tung"
+author: "Eunmin Lee"
+date: "2018?? 1?? 30??"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(SingleCellExperiment)
+library(scater)
+
+
+data_path = "D:/Dropbox/?Ŵ???/SC_tutorial"
+setwd(data_path)
+
+options(stringsAsFactors = FALSE)
+molecules <- read.table("tung/molecules.txt", sep = "\t")
+anno <- read.table("tung/annotation.txt", sep = "\t", header = TRUE)
+
+umi <- SingleCellExperiment(
+    assays = list(counts = as.matrix(molecules)), 
+    colData = anno
+    
+)
+keep_feature <- rowSums(counts(umi) > 0) > 0
+umi <- umi[keep_feature, ]
+
+isSpike(umi, "ERCC") <- grepl("^ERCC-", rownames(umi))
+isSpike(umi, "MT") <- rownames(umi) %in% 
+    c("ENSG00000198899", "ENSG00000198727", "ENSG00000198888",
+    "ENSG00000198886", "ENSG00000212907", "ENSG00000198786",
+    "ENSG00000198695", "ENSG00000198712", "ENSG00000198804",
+    "ENSG00000198763", "ENSG00000228253", "ENSG00000198938",
+    "ENSG00000198840")
+
+
+umi <- calculateQCMetrics(
+    umi,
+    feature_controls = list(
+        ERCC = isSpike(umi, "ERCC"), 
+        MT = isSpike(umi, "MT")
+    )
+)
+
+
+hist(
+    umi$total_counts,
+    breaks = 100
+)
+abline(v = 25000, col = "red")
+
+filter_by_total_counts = umi$total_counts > 25000
+
+
+hist(
+    umi$total_features,
+    breaks = 100
+)
+abline(v = 7000, col = "red")
+
+filter_by_expr_features = umi$total_features > 7000
+
+plotPhenoData(
+    umi,
+    aes_string(
+        x = "total_features",
+        y = "pct_counts_MT",
+        colour = "batch"
+    )
+)
+
+filter_by_MT = umi$pct_counts_MT < 10
+
+
+plotPhenoData(
+    umi,
+    aes_string(
+        x = "total_features",
+        y = "pct_counts_ERCC",
+        colour = "batch"
+    )
+)
+
+filter_by_ERCC = colData(umi)$batch != "NA19098.r2"
+
+
+# manual
+
+umi$use <- (
+    # sufficient features (genes)
+    filter_by_expr_features &
+    # sufficient molecules counted
+    filter_by_total_counts &
+    # sufficient endogenous RNA
+    filter_by_ERCC &
+    # remove cells with unusual number of reads in MT genes
+    filter_by_MT
+)
+
+# automatic
+
+umi <- plotPCA(
+    umi,
+    size_by = "total_features", 
+    shape_by = "use",
+    pca_data_input = "pdata",
+    detect_outliers = TRUE,  #<- automatic
+    return_SCE = TRUE
+)
+table(umi$outlier)
+
+
+umi.qc <- umi[rowData(umi)$use, colData(umi)$use]
+
+
+
+a=limma::vennCounts(cbind(umi$outlier,!umi$use))
+limma::vennDiagram(a , names=c("automatic", "manual"))
+
+
+filter_genes <- apply(
+    counts(umi[ , colData(umi)$use]), 
+    1, 
+    function(x) length(x[x > 1]) >= 2
+)
+rowData(umi)$use <- filter_genes
+
+assay(umi, "logcounts_raw") <- log2(counts(umi) + 1)
+tpm(example_sce) <- calculateTPM(example_sce, effective_length = 5e4)
+
+
+
+umi.qc <- umi[rowData(umi)$use, colData(umi)$use]
+endog_genes <- !rowData(umi.qc)$is_feature_control
+
+
+assay(umi, "logcounts_raw") <- log2(counts(umi) + 1)
+
+assay(umi, "logcounts_cpm") <- log2(calculateCPM(umi, use.size.factors = FALSE) + 1)
+
+assay(umi, "cpm") <- calculateCPM(umi, use.size.factors = FALSE)
+
+assay(umi, "tpm") <- calculateTPM(umi, effective_length = 5e4)
+
+assay(umi, "fpkm") <- calculateFPKM(umi, effective_length = 5e4,use.size.factors = FALSE)
+
+
+
+
+logcounts_raw =plotPCA(
+    umi.qc[endog_genes, ],
+    exprs_values = "logcounts_raw",
+    colour_by = "batch",
+    size_by = "total_features",
+    shape_by = "individual"
+)
+
+
+plotPCA(
+    umi.qc[endog_genes, ],
+    exprs_values = "logcounts_cpm",
+    colour_by = "batch",
+    size_by = "total_features",
+    shape_by = "individual"
+)
+
+
+plotPCA(
+    umi.qc[endog_genes, ],
+    exprs_values = "cpm",
+    colour_by = "batch",
+    size_by = "total_features",
+    shape_by = "individual"
+)
+
+
+plotPCA(
+    umi.qc[endog_genes, ],
+    exprs_values = "tpm",
+    colour_by = "batch",
+    size_by = "total_features",
+    shape_by = "individual"
+)
+
+
+perflexity_10 = plotTSNE(
+  umi.qc[endog_genes, ],
+  exprs_values = "cpm",
+  perplexity = 10,
+  colour_by = "batch",
+  size_by = "total_features",
+  shape_by = "individual",
+  rand_seed = 123456
+)
+
+
+
+
+
+## Normalization with scran
+clusters <- quickCluster(scesetFiltered)
+scesetFiltered <- computeSumFactors(scesetFiltered, cluster=clusters)
+
+
+plot(sizeFactors(scesetFiltered), scesetFiltered$total_counts/1e3, log= "xy",
+     ylab="Library size (kilos)", xlab="Size factor")
+
+assay(scesetFiltered, "logcounts")[2,]
+
+scesetFiltered <- normalize(scesetFiltered)
+
+scater::counts(scesetFiltered)
+
+
+saveRDS(scesetFiltered, "scsetFiltered_norm.rds")
+
+## Detecting highly variable genes
+
+
+var.fit <- trendVar(scesetFiltered, method="spline", parametric=TRUE, 
+                    use.spikes=FALSE, span=0.2)
+var.out <- decomposeVar(scesetFiltered, var.fit)
+hvg <- var.out[which(var.out$FDR <= 0.05 & var.out$bio > .1),]
+
+plot(y = var.out$total, x = var.out$mean, pch=16, cex=0.3, 
+     ylab="Variance of log-expression", xlab="Mean log-expression")
+o <- order(var.out$mean)
+lines(y = var.out$tech[o], x = var.out$mean[o], col="dodgerblue", lwd=2)
+points(y = var.out$total[var.out$FDR <= 0.05 & var.out$bio > .1],
+       x = var.out$mean[var.out$FDR <= 0.05 & var.out$bio > .1],
+       pch=16, cex=0.3, col="red")
+  
+
+dev.off()
+
+setwd(data_path)
+save(hvg, file="hvg.RData")
+
+
+plotPCA(
+  scesetFiltered[rownames(hvg), ],
+  exprs_values = "logcounts",
+  colour_by = "celltype",
+  size_by = "total_features",
+  shape_by = "batch"
+)
+
+
+plotTSNE(
+  scesetFiltered[rownames(hvg), ],
+  exprs_values = "logcounts",
+  perplexity = 50,
+  colour_by = "celltype",
+  size_by = "total_features",
+  shape_by = "batch",
+  rand_seed = 123456
+)
+
+
+
+
+
+seuset <- CreateSeuratObject(
+  raw.data = counts(scesetFiltered)
+)
+seuset@scale.data = exprs(scesetFiltered)
+seuset@var.genes = rownames(hvg)
+
+
+PCA = 50
+seuset <- RunPCA(seuset, pcs.compute = PCA, weight.by.var = FALSE)
+qplot(x = seq(1:PCA),y = seuset@dr$pca@sdev,
+      xlab = "PC", ylab = "Eigenvalue")
+
+
+PCA_use = 20
+
+seuset <- RunTSNE(seuset, dims.use = 1:PCA_use, do.fast = T, seed.use = 42, perplexity=100)
+
+seuset <- FindClusters(seuset,
+                       reduction.type="pca",
+                       dims.use = 1:PCA_use,
+                       save.SNN = TRUE,
+                       force.recalc = TRUE)
+
+PCAPlot(seuset)
+TSNEPlot(seuset)
+
+markers <- FindAllMarkers(
+  object = seuset,
+  test.use = "wilcox",
+  only.pos = TRUE,
+  min.pct = 0.25,
+  logfc.threshold = 0.25
+)
+
+library(dplyr)
+top3 <- markers %>% group_by(cluster) %>% do(head(.,3))
+
+DoHeatmap(
+  object = seuset,
+  genes.use = top3$gene, 
+  slim.col.label = TRUE, 
+  remove.key = TRUE
+)
+
+
+```
