@@ -100,6 +100,15 @@ umi$use <- (
     filter_by_MT
 )
 
+pdf("pca_manual_qc.pdf")
+plotPCA(
+    umi,
+    size_by = "total_features",
+    shape_by = "use",
+    pca_data_input = "pdata",
+)
+dev.off()
+
 # automatic
 
 pdf("pca_auto_outlier.pdf")
