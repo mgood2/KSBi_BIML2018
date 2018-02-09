@@ -10,12 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-library(SingleCellExperiment)
 library(scater)
-
-
-data_path = "D:/Dropbox/?Ŵ???/SC_tutorial"
-setwd(data_path)
 
 options(stringsAsFactors = FALSE)
 molecules <- read.table("tung/molecules.txt", sep = "\t")
@@ -24,7 +19,6 @@ anno <- read.table("tung/annotation.txt", sep = "\t", header = TRUE)
 umi <- SingleCellExperiment(
     assays = list(counts = as.matrix(molecules)), 
     colData = anno
-    
 )
 keep_feature <- rowSums(counts(umi) > 0) > 0
 umi <- umi[keep_feature, ]
@@ -47,11 +41,13 @@ umi <- calculateQCMetrics(
 )
 
 
+pdf("hist_total_counts.pdf")
 hist(
     umi$total_counts,
     breaks = 100
 )
 abline(v = 25000, col = "red")
+dev.off()
 
 filter_by_total_counts = umi$total_counts > 25000
 
