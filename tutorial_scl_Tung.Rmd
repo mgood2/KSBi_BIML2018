@@ -51,15 +51,16 @@ dev.off()
 
 filter_by_total_counts = umi$total_counts > 25000
 
-
+pdf("hist_total_features.pdf")
 hist(
     umi$total_features,
     breaks = 100
 )
 abline(v = 7000, col = "red")
-
+dev.off()
 filter_by_expr_features = umi$total_features > 7000
 
+pdf("MT_pct.pdf")
 plotPhenoData(
     umi,
     aes_string(
@@ -68,10 +69,11 @@ plotPhenoData(
         colour = "batch"
     )
 )
+dev.off()
 
 filter_by_MT = umi$pct_counts_MT < 10
 
-
+pdf("ERCC.pdf")
 plotPhenoData(
     umi,
     aes_string(
@@ -80,6 +82,7 @@ plotPhenoData(
         colour = "batch"
     )
 )
+dev.off()
 
 filter_by_ERCC = colData(umi)$batch != "NA19098.r2"
 
@@ -99,6 +102,7 @@ umi$use <- (
 
 # automatic
 
+pdf("pca_auto_outlier.pdf")
 umi <- plotPCA(
     umi,
     size_by = "total_features", 
@@ -107,6 +111,7 @@ umi <- plotPCA(
     detect_outliers = TRUE,  #<- automatic
     return_SCE = TRUE
 )
+dev.off()
 table(umi$outlier)
 
 
@@ -115,8 +120,9 @@ umi.qc <- umi[rowData(umi)$use, colData(umi)$use]
 
 
 a=limma::vennCounts(cbind(umi$outlier,!umi$use))
+pdf("vennDiag_auto_manual.pdf")
 limma::vennDiagram(a , names=c("automatic", "manual"))
-
+dev.off()
 
 filter_genes <- apply(
     counts(umi[ , colData(umi)$use]), 
@@ -146,7 +152,7 @@ assay(umi, "fpkm") <- calculateFPKM(umi, effective_length = 5e4,use.size.factors
 
 
 
-
+pdf("qc_logcounts_raw.pdf")
 logcounts_raw =plotPCA(
     umi.qc[endog_genes, ],
     exprs_values = "logcounts_raw",
@@ -154,8 +160,9 @@ logcounts_raw =plotPCA(
     size_by = "total_features",
     shape_by = "individual"
 )
+dev.off()
 
-
+pdf("qc_logcounts_cpm.pdf")
 plotPCA(
     umi.qc[endog_genes, ],
     exprs_values = "logcounts_cpm",
@@ -163,8 +170,10 @@ plotPCA(
     size_by = "total_features",
     shape_by = "individual"
 )
+dev.off()
 
 
+pdf("qc_cpm.pdf")
 plotPCA(
     umi.qc[endog_genes, ],
     exprs_values = "cpm",
@@ -172,8 +181,10 @@ plotPCA(
     size_by = "total_features",
     shape_by = "individual"
 )
+dev.off()
 
 
+pdf("qc_tpm.pdf")
 plotPCA(
     umi.qc[endog_genes, ],
     exprs_values = "tpm",
@@ -181,8 +192,9 @@ plotPCA(
     size_by = "total_features",
     shape_by = "individual"
 )
+dev.off()
 
-
+pdf("qc_tsne_cpm.pdf")
 perflexity_10 = plotTSNE(
   umi.qc[endog_genes, ],
   exprs_values = "cpm",
@@ -192,7 +204,7 @@ perflexity_10 = plotTSNE(
   shape_by = "individual",
   rand_seed = 123456
 )
-
+dev.off()
 
 
 
@@ -202,14 +214,15 @@ clusters <- quickCluster(scesetFiltered)
 scesetFiltered <- computeSumFactors(scesetFiltered, cluster=clusters)
 
 
+pdf("plot_scran_sizefactor.pdf")
 plot(sizeFactors(scesetFiltered), scesetFiltered$total_counts/1e3, log= "xy",
      ylab="Library size (kilos)", xlab="Size factor")
-
-assay(scesetFiltered, "logcounts")[2,]
+dev.off()
+#assay(scesetFiltered, "logcounts")[2,]
 
 scesetFiltered <- normalize(scesetFiltered)
 
-scater::counts(scesetFiltered)
+#scater::counts(scesetFiltered)
 
 
 saveRDS(scesetFiltered, "scsetFiltered_norm.rds")
